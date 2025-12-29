@@ -42,11 +42,30 @@ export default function Home() {
     setLoadingMessage("CSVファイルを解析中...");
 
     try {
-      // CSVをブラウザ側で解析（BOMを除去）
+      // CSVをブラウザ側で解析
+      // まずUTF-8で読み込み
       let csvText = await csvFile.text();
+
       // BOM (Byte Order Mark) を除去
       if (csvText.charCodeAt(0) === 0xfeff) {
         csvText = csvText.slice(1);
+      }
+
+      // 文字化けチェック（Shift-JISをUTF-8で読むと置換文字が発生）
+      const hasGarbledText = csvText.includes("\ufffd") ||
+        csvText.includes("�") ||
+        (csvText.slice(0, 200).includes(",") &&
+         !/[ぁ-んァ-ン一-龯メールアドレス登録経路]/.test(csvText.slice(0, 200)));
+
+      if (hasGarbledText) {
+        // Shift-JISで再読み込み
+        const arrayBuffer = await csvFile.arrayBuffer();
+        const decoder = new TextDecoder("shift-jis");
+        csvText = decoder.decode(arrayBuffer);
+        // BOM除去（念のため）
+        if (csvText.charCodeAt(0) === 0xfeff) {
+          csvText = csvText.slice(1);
+        }
       }
 
       const parseResult = Papa.parse<CsvRow>(csvText, {
@@ -80,17 +99,18 @@ export default function Home() {
       };
 
       const firstRow = csvData[0];
+      const columnNames = Object.keys(firstRow);
       const emailPatterns = ["メールアドレス", "メアド", "eメール", "email", "e-mail", "mail"];
       const routePatterns = ["登録経路"];
 
       const emailColumn = findColumnName(firstRow, emailPatterns);
       if (!emailColumn) {
-        throw new Error("CSVに「メールアドレス」列がありません");
+        throw new Error(`CSVに「メールアドレス」列がありません。検出されたカラム: ${columnNames.slice(0, 5).join(", ")}`);
       }
 
       const routeColumn = findColumnName(firstRow, routePatterns);
       if (!routeColumn) {
-        throw new Error("CSVに「登録経路」列がありません");
+        throw new Error(`CSVに「登録経路」列がありません。検出されたカラム: ${columnNames.slice(0, 5).join(", ")}`);
       }
 
       // メールアドレスと登録経路のマッピングを作成
