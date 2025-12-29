@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import Papa from "papaparse";
 
+// ボディサイズ制限を上げる
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
+};
+
 // 設定
 const EMAIL_COLUMN_PATTERNS = ["メールアドレス", "メアド", "eメール", "email", "e-mail", "mail"];
 const UTAGE_EMAIL_COLUMN = "メールアドレス";

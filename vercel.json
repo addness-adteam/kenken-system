@@ -1,7 +1,8 @@
 {
   "functions": {
-    "src/app/api/process/route.ts": {
-      "maxDuration": 60
+    "app/api/process/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   }
 }
