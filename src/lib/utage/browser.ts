@@ -1,5 +1,8 @@
 import puppeteer, { Browser, Page, Cookie } from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
+
+const CHROMIUM_REMOTE_URL =
+  'https://github.com/nicchie/chromium/releases/download/v126.0.0-r1/chromium-v126.0.0-pack.tar';
 
 let browserInstance: Browser | null = null;
 
@@ -8,7 +11,7 @@ export async function getBrowser(): Promise<Browser> {
     return browserInstance;
   }
 
-  const executablePath = await chromium.executablePath();
+  const executablePath = await chromium.executablePath(CHROMIUM_REMOTE_URL);
 
   browserInstance = await puppeteer.launch({
     args: chromium.args,
