@@ -70,6 +70,7 @@ export default async function handler(
         continue;
       }
 
+      // 全ての行をチェックし、登録経路がある行の中で一番古いもの（最後の行）を取得
       const registrationRoute = await page.evaluate(() => {
         const table = document.querySelector('table');
         if (!table) return null;
@@ -77,21 +78,34 @@ export default async function handler(
         const rows = table.querySelectorAll('tbody tr');
         if (rows.length === 0) return null;
 
-        const firstRow = rows[0];
-        const cells = firstRow.querySelectorAll('td');
-
-        for (let i = 0; i < cells.length; i++) {
-          const headerCells = table.querySelectorAll('thead th');
+        // 登録経路列のインデックスを特定
+        const headerCells = table.querySelectorAll('thead th');
+        let routeColumnIndex = -1;
+        for (let i = 0; i < headerCells.length; i++) {
           if (headerCells[i]?.textContent?.includes('登録経路')) {
-            return cells[i]?.textContent?.trim() || null;
+            routeColumnIndex = i;
+            break;
           }
         }
 
-        if (cells.length >= 4) {
-          return cells[3]?.textContent?.trim() || null;
+        // ヘッダーで見つからない場合は4列目（インデックス3）をデフォルトとする
+        if (routeColumnIndex === -1) {
+          routeColumnIndex = 3;
         }
 
-        return null;
+        // 全ての行をチェックして、登録経路がある一番最後の行（一番古いもの）を取得
+        let lastFoundRoute: string | null = null;
+        for (let i = 0; i < rows.length; i++) {
+          const cells = rows[i].querySelectorAll('td');
+          if (cells.length > routeColumnIndex) {
+            const route = cells[routeColumnIndex]?.textContent?.trim();
+            if (route) {
+              lastFoundRoute = route;  // 上書きしていくので、最後に見つかったものが残る
+            }
+          }
+        }
+
+        return lastFoundRoute;
       });
 
       if (registrationRoute) {
