@@ -42,8 +42,12 @@ export default function Home() {
     setLoadingMessage("CSVファイルを解析中...");
 
     try {
-      // CSVをブラウザ側で解析
-      const csvText = await csvFile.text();
+      // CSVをブラウザ側で解析（BOMを除去）
+      let csvText = await csvFile.text();
+      // BOM (Byte Order Mark) を除去
+      if (csvText.charCodeAt(0) === 0xfeff) {
+        csvText = csvText.slice(1);
+      }
 
       const parseResult = Papa.parse<CsvRow>(csvText, {
         header: true,
@@ -61,11 +65,31 @@ export default function Home() {
         throw new Error("CSVにデータがありません");
       }
 
+      // カラム名を柔軟に検索する関数
+      const findColumnName = (row: CsvRow, patterns: string[]): string | null => {
+        const keys = Object.keys(row);
+        for (const key of keys) {
+          const keyLower = key.toLowerCase().trim();
+          for (const pattern of patterns) {
+            if (keyLower.includes(pattern.toLowerCase())) {
+              return key;
+            }
+          }
+        }
+        return null;
+      };
+
       const firstRow = csvData[0];
-      if (!("メールアドレス" in firstRow)) {
+      const emailPatterns = ["メールアドレス", "メアド", "eメール", "email", "e-mail", "mail"];
+      const routePatterns = ["登録経路"];
+
+      const emailColumn = findColumnName(firstRow, emailPatterns);
+      if (!emailColumn) {
         throw new Error("CSVに「メールアドレス」列がありません");
       }
-      if (!("登録経路" in firstRow)) {
+
+      const routeColumn = findColumnName(firstRow, routePatterns);
+      if (!routeColumn) {
         throw new Error("CSVに「登録経路」列がありません");
       }
 
@@ -74,8 +98,8 @@ export default function Home() {
       const emailRouteMap: Record<string, string[]> = {};
 
       for (const row of csvData) {
-        const email = String(row["メールアドレス"] || "").trim().toLowerCase();
-        const route = String(row["登録経路"] || "");
+        const email = String(row[emailColumn] || "").trim().toLowerCase();
+        const route = String(row[routeColumn] || "");
 
         if (!email) continue;
 
