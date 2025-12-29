@@ -1,20 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { google } from "googleapis";
-import formidable from "formidable";
-import fs from "fs";
-import Papa from "papaparse";
-
-// body parserを無効化（formidableを使用）
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
 
 // 設定
 const EMAIL_COLUMN_PATTERNS = ["メールアドレス", "メアド", "eメール", "email", "e-mail", "mail"];
-const UTAGE_EMAIL_COLUMN = "メールアドレス";
-const UTAGE_ROUTE_COLUMN = "登録経路";
 
 function getCredentials() {
   const credsJson = process.env.GOOGLE_CREDENTIALS;
@@ -66,24 +54,9 @@ function colIndexToLetter(index: number): string {
   return result;
 }
 
-interface FormFields {
-  spreadsheet_url?: string | string[];
-}
-
-interface FormFiles {
-  csv_file?: formidable.File | formidable.File[];
-}
-
-async function parseForm(req: NextApiRequest): Promise<{ fields: FormFields; files: FormFiles }> {
-  return new Promise((resolve, reject) => {
-    const form = formidable({
-      maxFileSize: 50 * 1024 * 1024, // 50MB
-    });
-    form.parse(req, (err, fields, files) => {
-      if (err) reject(err);
-      else resolve({ fields: fields as FormFields, files: files as FormFiles });
-    });
-  });
+interface RequestBody {
+  spreadsheet_url: string;
+  email_route_map: Record<string, string[]>;
 }
 
 export default async function handler(
@@ -95,24 +68,17 @@ export default async function handler(
   }
 
   try {
-    const { fields, files } = await parseForm(req);
+    const { spreadsheet_url, email_route_map } = req.body as RequestBody;
 
-    const spreadsheetUrl = Array.isArray(fields.spreadsheet_url)
-      ? fields.spreadsheet_url[0]
-      : fields.spreadsheet_url;
-
-    const csvFileField = files.csv_file;
-    const csvFile = Array.isArray(csvFileField) ? csvFileField[0] : csvFileField;
-
-    if (!spreadsheetUrl || !csvFile) {
+    if (!spreadsheet_url || !email_route_map) {
       return res.status(400).json({
         success: false,
-        error: "スプレッドシートURLとCSVファイルが必要です",
+        error: "スプレッドシートURLとメールアドレスマッピングが必要です",
       });
     }
 
     // スプレッドシートID抽出
-    const spreadsheetId = extractSpreadsheetId(spreadsheetUrl);
+    const spreadsheetId = extractSpreadsheetId(spreadsheet_url);
 
     // Google認証
     const credentials = getCredentials();
@@ -162,60 +128,13 @@ export default async function handler(
       });
     }
 
-    // CSVを読み込み
-    const csvContent = fs.readFileSync(csvFile.filepath, "utf-8");
-    const parseResult = Papa.parse(csvContent, {
-      header: true,
-      skipEmptyLines: true,
-    });
-
-    const csvData = parseResult.data as Record<string, string>[];
-
-    // 必須カラムチェック
-    if (csvData.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "CSVにデータがありません",
-      });
-    }
-
-    const firstRow = csvData[0];
-    if (!(UTAGE_EMAIL_COLUMN in firstRow)) {
-      return res.status(400).json({
-        success: false,
-        error: `CSVに「${UTAGE_EMAIL_COLUMN}」列がありません`,
-      });
-    }
-    if (!(UTAGE_ROUTE_COLUMN in firstRow)) {
-      return res.status(400).json({
-        success: false,
-        error: `CSVに「${UTAGE_ROUTE_COLUMN}」列がありません`,
-      });
-    }
-
-    // インデックス作成
-    const emailToRoutes: Record<string, string[]> = {};
-    for (const row of csvData) {
-      const email = String(row[UTAGE_EMAIL_COLUMN] || "");
-      const route = String(row[UTAGE_ROUTE_COLUMN] || "");
-      if (!email) continue;
-
-      const normalized = normalizeEmail(email);
-      if (!emailToRoutes[normalized]) {
-        emailToRoutes[normalized] = [];
-      }
-      if (route && !emailToRoutes[normalized].includes(route)) {
-        emailToRoutes[normalized].push(route);
-      }
-    }
-
     // 照合
     const results: { email: string; routes: string[]; found: boolean }[] = [];
     const notFoundEmails: string[] = [];
 
     for (const email of emails) {
       const normalized = normalizeEmail(email);
-      const routes = emailToRoutes[normalized] || [];
+      const routes = email_route_map[normalized] || [];
       if (routes.length > 0) {
         results.push({ email, routes, found: true });
       } else {
@@ -265,9 +184,6 @@ export default async function handler(
         values: valuesToWrite,
       },
     });
-
-    // 一時ファイル削除
-    fs.unlinkSync(csvFile.filepath);
 
     return res.status(200).json({
       success: true,

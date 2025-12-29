@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Papa from "papaparse";
 
 interface ProcessResult {
   success: boolean;
@@ -11,10 +12,15 @@ interface ProcessResult {
   error?: string;
 }
 
+interface CsvRow {
+  [key: string]: string;
+}
+
 export default function Home() {
   const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,15 +35,66 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setLoadingMessage("CSVファイルを解析中...");
 
     try {
-      const formData = new FormData();
-      formData.append("spreadsheet_url", spreadsheetUrl);
-      formData.append("csv_file", csvFile);
+      // CSVをブラウザ側で解析
+      const csvText = await csvFile.text();
 
+      const parseResult = Papa.parse<CsvRow>(csvText, {
+        header: true,
+        skipEmptyLines: true,
+      });
+
+      if (parseResult.errors.length > 0) {
+        throw new Error("CSVファイルの解析に失敗しました");
+      }
+
+      const csvData = parseResult.data;
+
+      // メールアドレス列と登録経路列を確認
+      if (csvData.length === 0) {
+        throw new Error("CSVにデータがありません");
+      }
+
+      const firstRow = csvData[0];
+      if (!("メールアドレス" in firstRow)) {
+        throw new Error("CSVに「メールアドレス」列がありません");
+      }
+      if (!("登録経路" in firstRow)) {
+        throw new Error("CSVに「登録経路」列がありません");
+      }
+
+      // メールアドレスと登録経路のマッピングを作成
+      setLoadingMessage("データを抽出中...");
+      const emailRouteMap: Record<string, string[]> = {};
+
+      for (const row of csvData) {
+        const email = String(row["メールアドレス"] || "").trim().toLowerCase();
+        const route = String(row["登録経路"] || "");
+
+        if (!email) continue;
+
+        if (!emailRouteMap[email]) {
+          emailRouteMap[email] = [];
+        }
+        if (route && !emailRouteMap[email].includes(route)) {
+          emailRouteMap[email].push(route);
+        }
+      }
+
+      setLoadingMessage("サーバーに送信中...");
+
+      // JSONでサーバーに送信（ファイルより遥かに小さい）
       const response = await fetch("/api/process", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          spreadsheet_url: spreadsheetUrl,
+          email_route_map: emailRouteMap,
+        }),
       });
 
       const data = await response.json();
@@ -47,10 +104,11 @@ export default function Home() {
       } else {
         setError(data.error || "処理中にエラーが発生しました");
       }
-    } catch {
-      setError("サーバーとの通信に失敗しました");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "処理に失敗しました");
     } finally {
       setLoading(false);
+      setLoadingMessage("");
     }
   };
 
@@ -128,7 +186,7 @@ export default function Home() {
                 : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800"
             }`}
           >
-            {loading ? "処理中..." : "実行"}
+            {loading ? loadingMessage || "処理中..." : "実行"}
           </button>
         </form>
 
