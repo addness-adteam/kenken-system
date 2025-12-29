@@ -202,6 +202,18 @@ def process_data(spreadsheet_url: str, csv_content: bytes) -> dict:
 
 
 class handler(BaseHTTPRequestHandler):
+    def send_cors_headers(self):
+        """CORSヘッダーを送信"""
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        """プリフライトリクエスト対応"""
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
+
     def do_POST(self):
         try:
             # Content-Typeからboundaryを取得
@@ -238,6 +250,7 @@ class handler(BaseHTTPRequestHandler):
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(json.dumps(result).encode())
             else:
@@ -246,6 +259,7 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_response(500)
             self.send_header("Content-Type", "application/json")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps({
                 "success": False,
