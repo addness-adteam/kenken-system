@@ -2,7 +2,7 @@ import puppeteer, { Browser, Page, Cookie } from 'puppeteer-core';
 import chromium from '@sparticuz/chromium-min';
 
 const CHROMIUM_REMOTE_URL =
-  'https://github.com/nicchie/chromium/releases/download/v126.0.0-r1/chromium-v126.0.0-pack.tar';
+  'https://github.com/Sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar';
 
 let browserInstance: Browser | null = null;
 
