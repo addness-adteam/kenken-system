@@ -1,6 +1,6 @@
 {
   "functions": {
-    "app/api/process/route.ts": {
+    "pages/api/process.ts": {
       "maxDuration": 60,
       "memory": 1024
     }

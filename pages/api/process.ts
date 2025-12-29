@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextApiRequest, NextApiResponse } from "next";
 import { google } from "googleapis";
+import formidable from "formidable";
+import fs from "fs";
 import Papa from "papaparse";
 
-// ボディサイズ制限を上げる
+// body parserを無効化（formidableを使用）
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: "50mb",
-    },
+    bodyParser: false,
   },
 };
 
@@ -66,17 +66,49 @@ function colIndexToLetter(index: number): string {
   return result;
 }
 
-export async function POST(request: NextRequest) {
+interface FormFields {
+  spreadsheet_url?: string | string[];
+}
+
+interface FormFiles {
+  csv_file?: formidable.File | formidable.File[];
+}
+
+async function parseForm(req: NextApiRequest): Promise<{ fields: FormFields; files: FormFiles }> {
+  return new Promise((resolve, reject) => {
+    const form = formidable({
+      maxFileSize: 50 * 1024 * 1024, // 50MB
+    });
+    form.parse(req, (err, fields, files) => {
+      if (err) reject(err);
+      else resolve({ fields: fields as FormFields, files: files as FormFiles });
+    });
+  });
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  }
+
   try {
-    const formData = await request.formData();
-    const spreadsheetUrl = formData.get("spreadsheet_url") as string;
-    const csvFile = formData.get("csv_file") as File;
+    const { fields, files } = await parseForm(req);
+
+    const spreadsheetUrl = Array.isArray(fields.spreadsheet_url)
+      ? fields.spreadsheet_url[0]
+      : fields.spreadsheet_url;
+
+    const csvFileField = files.csv_file;
+    const csvFile = Array.isArray(csvFileField) ? csvFileField[0] : csvFileField;
 
     if (!spreadsheetUrl || !csvFile) {
-      return NextResponse.json(
-        { success: false, error: "スプレッドシートURLとCSVファイルが必要です" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: "スプレッドシートURLとCSVファイルが必要です",
+      });
     }
 
     // スプレッドシートID抽出
@@ -98,20 +130,20 @@ export async function POST(request: NextRequest) {
 
     const allData = response.data.values;
     if (!allData || allData.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "スプレッドシートにデータがありません" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: "スプレッドシートにデータがありません",
+      });
     }
 
     // メールアドレス列を検出
     const headerRow = allData[0] as string[];
     const emailColIndex = findEmailColumn(headerRow);
     if (emailColIndex < 0) {
-      return NextResponse.json(
-        { success: false, error: "メールアドレス列が見つかりません" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: "メールアドレス列が見つかりません",
+      });
     }
 
     // メールアドレスを抽出
@@ -124,15 +156,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (emails.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "メールアドレスが見つかりません" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: "メールアドレスが見つかりません",
+      });
     }
 
     // CSVを読み込み
-    const csvText = await csvFile.text();
-    const parseResult = Papa.parse(csvText, {
+    const csvContent = fs.readFileSync(csvFile.filepath, "utf-8");
+    const parseResult = Papa.parse(csvContent, {
       header: true,
       skipEmptyLines: true,
     });
@@ -141,24 +173,24 @@ export async function POST(request: NextRequest) {
 
     // 必須カラムチェック
     if (csvData.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "CSVにデータがありません" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: "CSVにデータがありません",
+      });
     }
 
     const firstRow = csvData[0];
     if (!(UTAGE_EMAIL_COLUMN in firstRow)) {
-      return NextResponse.json(
-        { success: false, error: `CSVに「${UTAGE_EMAIL_COLUMN}」列がありません` },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: `CSVに「${UTAGE_EMAIL_COLUMN}」列がありません`,
+      });
     }
     if (!(UTAGE_ROUTE_COLUMN in firstRow)) {
-      return NextResponse.json(
-        { success: false, error: `CSVに「${UTAGE_ROUTE_COLUMN}」列がありません` },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: `CSVに「${UTAGE_ROUTE_COLUMN}」列がありません`,
+      });
     }
 
     // インデックス作成
@@ -234,7 +266,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    // 一時ファイル削除
+    fs.unlinkSync(csvFile.filepath);
+
+    return res.status(200).json({
       success: true,
       total_count: emails.length,
       success_count: emails.length - notFoundEmails.length,
@@ -244,9 +279,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Error:", error);
-    return NextResponse.json(
-      { success: false, error: String(error) },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      success: false,
+      error: String(error),
+    });
   }
 }
