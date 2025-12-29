@@ -1,6 +1,6 @@
 {
   "functions": {
-    "pages/api/process.ts": {
+    "src/pages/api/process.ts": {
       "maxDuration": 60,
       "memory": 1024
     }
