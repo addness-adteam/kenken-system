@@ -9,10 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^143.0.0",
     "formidable": "^3.5.4",
     "googleapis": "^169.0.0",
     "next": "16.1.1",
     "papaparse": "^5.5.3",
+    "puppeteer-core": "^24.34.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

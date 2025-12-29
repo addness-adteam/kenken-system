@@ -3,6 +3,22 @@
     "src/pages/api/process.ts": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "src/pages/api/utage/login.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "src/pages/api/utage/search.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "src/pages/api/utage/get-emails.ts": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "src/pages/api/utage/write-results.ts": {
+      "maxDuration": 30,
+      "memory": 512
     }
   }
 }

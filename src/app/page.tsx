@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Papa from "papaparse";
 
 interface ProcessResult {
@@ -16,7 +17,10 @@ interface CsvRow {
   [key: string]: string;
 }
 
+type Mode = "select" | "csv";
+
 export default function Home() {
+  const [mode, setMode] = useState<Mode>("select");
   const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -112,17 +116,89 @@ export default function Home() {
     }
   };
 
+  if (mode === "select") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              UTAGE登録経路取得システム
+            </h1>
+            <p className="text-gray-600">
+              登録経路の取得方法を選択してください
+            </p>
+          </div>
+
+          <div className="grid gap-6">
+            <button
+              onClick={() => setMode("csv")}
+              className="bg-white rounded-2xl shadow-xl p-8 text-left hover:shadow-2xl transition-shadow border-2 border-transparent hover:border-blue-400"
+            >
+              <div className="flex items-start gap-4">
+                <div className="text-4xl">📁</div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 mb-2">
+                    CSV解析で登録経路を取得
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    UTAGEからダウンロードした売上一覧CSVファイルを使用して、
+                    メールアドレスに紐づく登録経路を取得します。
+                    高速で安定した処理が可能です。
+                  </p>
+                  <p className="text-blue-600 text-sm mt-2 font-medium">
+                    おすすめ: 大量データの処理向け
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            <Link
+              href="/utage-search"
+              className="bg-white rounded-2xl shadow-xl p-8 text-left hover:shadow-2xl transition-shadow border-2 border-transparent hover:border-purple-400 block"
+            >
+              <div className="flex items-start gap-4">
+                <div className="text-4xl">🔍</div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 mb-2">
+                    UTAGE自動検索で登録経路を取得
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    UTAGEの登録者一覧を自動検索して登録経路を取得します。
+                    CSVダウンロード不要で、直接検索を行います。
+                  </p>
+                  <p className="text-purple-600 text-sm mt-2 font-medium">
+                    CSVダウンロードが面倒な場合はこちら
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            UTAGE登録経路取得システム
+            CSV解析で登録経路を取得
           </h1>
           <p className="text-gray-600">
             UTAGEの売上一覧CSVからメールアドレスに紐づく登録経路を取得し、
             Googleスプレッドシートに書き込みます
           </p>
+          <button
+            onClick={() => {
+              setMode("select");
+              setResult(null);
+              setError(null);
+            }}
+            className="mt-4 text-blue-600 hover:text-blue-800 underline"
+          >
+            機能選択に戻る
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
