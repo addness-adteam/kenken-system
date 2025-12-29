@@ -1,6 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { google } from "googleapis";
 
+// bodyサイズ制限を上げる
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb",
+    },
+  },
+};
+
 // 設定
 const EMAIL_COLUMN_PATTERNS = ["メールアドレス", "メアド", "eメール", "email", "e-mail", "mail"];
 
